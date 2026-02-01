@@ -1,0 +1,39 @@
+[Unit]
+Description=Sliver I2P Bridge
+Documentation=https://github.com/sliver-i2p-bridge
+After=network.target i2p.service
+Requires=i2p.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/lib/sliver-i2p-bridge
+
+# Main execution
+ExecStart=/usr/local/bin/sliver-i2p-bridge start \
+    --sliver-host 127.0.0.1 \
+    --sliver-port 8443 \
+    --sam-host 127.0.0.1 \
+    --sam-port 7656 \
+    --persist-keys \
+    --key-path /var/lib/sliver-i2p-bridge/destination.keys
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sliver-i2p-bridge
+PrivateTmp=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sliver-i2p-bridge
+
+[Install]
+WantedBy=multi-user.target

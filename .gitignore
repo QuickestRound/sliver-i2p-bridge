@@ -1,0 +1,43 @@
+# Binaries
+sliver-i2p-bridge
+sliver-i2p-bridge.exe
+sliver-i2p-bridge-linux-*
+sliver-i2p-bridge-darwin-*
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Keys and secrets
+*.keys
+destination.keys
+*.pem
+*.key
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+go.sum
+
+# Build
+dist/
+build/
+
+# Logs
+*.log
