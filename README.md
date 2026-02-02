@@ -1,4 +1,4 @@
-QuickestRound14's shit (vibe coded) Sliver edit. Made for personal use.
+QuickestRound's shit (vibe coded) Sliver edit. Made for personal use.
 
 # sliver-i2p-bridge
 
@@ -43,7 +43,7 @@ Creates an I2P hidden destination that forwards traffic to Sliver's HTTPS listen
 ### Build
 
 ```bash
-git clone https://github.com/QuickestRound14/sliver-i2p-bridge.git
+git clone https://github.com/QuickestRound/sliver-i2p-bridge.git
 cd sliver-i2p-bridge
 go build -o sliver-i2p-bridge ./cmd/sliver-i2p-bridge
 ```
