@@ -107,6 +107,8 @@ func (s *Session) Close() error {
 
 // loadOrGenerateKeys loads existing keys from disk or generates new ones
 // Uses the i2pkeys package's LoadKeys/StoreKeys for proper persistence
+// CRITICAL: If key file exists but fails to load, returns error to prevent
+// silently switching to a new identity (which would orphan deployed implants)
 func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
 	// Try to load existing keys
 	if _, err := os.Stat(keyPath); err == nil {
@@ -114,13 +116,13 @@ func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
 		
 		keys, err := i2pkeys.LoadKeys(keyPath)
 		if err != nil {
-			fmt.Printf("[!] Failed to load keys: %v\n", err)
-			fmt.Printf("[*] Generating new keys instead...\n")
-		} else {
-			fmt.Printf("[+] Keys loaded successfully!\n")
-			fmt.Printf("[+] Your B32 address is preserved: %s.b32.i2p\n", keys.Addr().Base32())
-			return sam3.I2PKeys(keys), nil
+			// CRITICAL: Do NOT silently fall back to new keys!
+			// This would change our B32 address and orphan all deployed implants
+			return sam3.I2PKeys{}, fmt.Errorf("CRITICAL: key file exists but failed to load: %w (check permissions or delete file to generate new keys)", err)
 		}
+		fmt.Printf("[+] Keys loaded successfully!\n")
+		fmt.Printf("[+] Your B32 address is preserved: %s.b32.i2p\n", keys.Addr().Base32())
+		return sam3.I2PKeys(keys), nil
 	}
 
 	// Generate new keys
