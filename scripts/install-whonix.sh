@@ -76,9 +76,24 @@ else
     echo "[!] You may need to start I2P once to generate config, then re-run this script"
 fi
 
-# Install Go (if not present)
+# Install Go (if not present or version too old)
 echo "[*] Checking Go installation..."
-if ! command -v go &> /dev/null; then
+NEED_GO=true
+if command -v go &> /dev/null; then
+    # Extract version (e.g., "go1.22.5" -> "1.22.5")
+    CURRENT_VER=$(go version | awk '{print $3}' | sed 's/go//')
+    MAJOR_MINOR=$(echo "$CURRENT_VER" | cut -d. -f1,2)
+    
+    # Check if version is 1.21 or higher (required by go.mod)
+    if [ "$(echo -e "1.21\n$MAJOR_MINOR" | sort -V | head -1)" = "1.21" ]; then
+        echo "[+] Go $CURRENT_VER is sufficient (need 1.21+)"
+        NEED_GO=false
+    else
+        echo "[!] Go $CURRENT_VER is too old (need 1.21+), will upgrade"
+    fi
+fi
+
+if [ "$NEED_GO" = true ]; then
     echo "[*] Installing Go..."
     # Get latest stable Go version dynamically
     GO_VERSION=$(curl -s 'https://go.dev/VERSION?m=text' | head -1 | sed 's/go//')
