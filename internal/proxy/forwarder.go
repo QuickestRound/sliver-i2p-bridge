@@ -60,11 +60,10 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 	}
 	defer sliverConn.Close()
 
-	// Set idle timeout to prevent zombie connections (10 minutes)
-	// This ensures hung connections are killed if no data flows
-	idleTimeout := 10 * time.Minute
-	i2pConn.SetDeadline(time.Now().Add(idleTimeout))
-	sliverConn.SetDeadline(time.Now().Add(idleTimeout))
+	// Note: We intentionally do NOT set connection deadlines here.
+	// SetDeadline() sets an absolute wall-clock time, not an idle timeout.
+	// For C2 over I2P (high latency), it's better to let the application
+	// layer (Sliver) handle timeouts and reconnection logic.
 
 	// Use a done channel to signal when either copy completes
 	done := make(chan struct{})
