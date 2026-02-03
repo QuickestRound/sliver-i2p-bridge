@@ -97,22 +97,25 @@ if ! command -v go &> /dev/null; then
     fi
     
     # Verify SHA256 checksum (download expected hash from go.dev)
+    # SECURITY: Fail-closed - if we can't verify, we abort
     echo "[*] Verifying SHA256 checksum..."
     EXPECTED_HASH=$(curl -s "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz.sha256")
-    if [ -n "$EXPECTED_HASH" ]; then
-        ACTUAL_HASH=$(sha256sum /tmp/go.tar.gz | awk '{print $1}')
-        if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
-            echo "[!] SECURITY WARNING: SHA256 checksum mismatch!"
-            echo "[!] Expected: $EXPECTED_HASH"
-            echo "[!] Got:      $ACTUAL_HASH"
-            echo "[!] Aborting to prevent potential MITM attack"
-            rm -f /tmp/go.tar.gz
-            exit 1
-        fi
-        echo "[+] Checksum verified!"
-    else
-        echo "[!] Could not fetch checksum - proceeding with caution"
+    if [ -z "$EXPECTED_HASH" ]; then
+        echo "[!] SECURITY: Could not fetch checksum - aborting"
+        echo "[!] This could indicate a network issue or MITM attack"
+        rm -f /tmp/go.tar.gz
+        exit 1
     fi
+    ACTUAL_HASH=$(sha256sum /tmp/go.tar.gz | awk '{print $1}')
+    if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+        echo "[!] SECURITY WARNING: SHA256 checksum mismatch!"
+        echo "[!] Expected: $EXPECTED_HASH"
+        echo "[!] Got:      $ACTUAL_HASH"
+        echo "[!] Aborting to prevent potential MITM attack"
+        rm -f /tmp/go.tar.gz
+        exit 1
+    fi
+    echo "[+] Checksum verified!"
     
     sudo rm -rf /usr/local/go  # Remove old version to prevent mixed files
     sudo tar -C /usr/local -xzf /tmp/go.tar.gz

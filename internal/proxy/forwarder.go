@@ -7,10 +7,23 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+// isExpectedCloseError returns true if the error is a normal connection close
+// that shouldn't be logged as an error (e.g., when peer closes cleanly)
+func isExpectedCloseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "use of closed network connection") ||
+		strings.Contains(errStr, "connection reset by peer") ||
+		err == io.EOF
+}
 
 // Forwarder handles bidirectional traffic forwarding between I2P and Sliver
 type Forwarder struct {
@@ -92,7 +105,8 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 	go func() {
 		_, err := io.Copy(sliverConn, i2pConn)
 		errMu.Lock()
-		if copyErr == nil && err != nil {
+		// Only capture real errors, not expected close errors
+		if copyErr == nil && err != nil && !isExpectedCloseError(err) {
 			copyErr = err
 		}
 		errMu.Unlock()
@@ -110,7 +124,8 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 	go func() {
 		_, err := io.Copy(i2pConn, sliverConn)
 		errMu.Lock()
-		if copyErr == nil && err != nil {
+		// Only capture real errors, not expected close errors
+		if copyErr == nil && err != nil && !isExpectedCloseError(err) {
 			copyErr = err
 		}
 		errMu.Unlock()
