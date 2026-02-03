@@ -4,11 +4,11 @@ go 1.21
 
 require (
 	github.com/go-i2p/go-sam-go v0.33.8
+	github.com/go-i2p/i2pkeys v0.33.92
 	github.com/spf13/cobra v1.8.0
 )
 
 require (
-	github.com/go-i2p/i2pkeys v0.0.0-20241108200332-e4f5ccdff8c4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

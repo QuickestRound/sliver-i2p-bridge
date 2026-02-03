@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-i2p/i2pkeys"
 	sam3 "github.com/go-i2p/go-sam-go"
 )
 
@@ -130,33 +131,38 @@ func (s *Session) Close() error {
 	return nil
 }
 
-// loadOrGenerateKeys loads existing keys or generates new ones
-// Note: Key persistence is experimental - go-sam-go doesn't expose a public
-// constructor from stored data, so we always generate fresh keys for now.
-// The file is still saved for potential future use or manual inspection.
+// loadOrGenerateKeys loads existing keys from disk or generates new ones
+// Uses the i2pkeys package's LoadKeys/StoreKeys for proper persistence
 func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
-	// Check if key file exists - for now we just log and regenerate
-	// Full key persistence requires understanding go-sam-go's internal key format
-	if data, err := os.ReadFile(keyPath); err == nil && len(data) > 0 {
-		fmt.Printf("[!] Found existing key file at %s\n", keyPath)
-		fmt.Printf("[!] Key persistence not fully implemented - generating new keys\n")
-		fmt.Printf("[!] Your B32 address will change!\n")
+	// Try to load existing keys
+	if _, err := os.Stat(keyPath); err == nil {
+		fmt.Printf("[*] Loading existing keys from %s\n", keyPath)
+		
+		keys, err := i2pkeys.LoadKeys(keyPath)
+		if err != nil {
+			fmt.Printf("[!] Failed to load keys: %v\n", err)
+			fmt.Printf("[*] Generating new keys instead...\n")
+		} else {
+			fmt.Printf("[+] Keys loaded successfully!\n")
+			fmt.Printf("[+] Your B32 address is preserved: %s.b32.i2p\n", keys.Addr().Base32())
+			return sam3.I2PKeys(keys), nil
+		}
 	}
 
 	// Generate new keys
+	fmt.Printf("[*] Generating new I2P destination keys...\n")
 	keys, err := s.sam.NewKeys()
 	if err != nil {
 		return sam3.I2PKeys{}, fmt.Errorf("failed to generate keys: %w", err)
 	}
 
-	// Save keys using the String() format
-	// Format is implementation-defined but we save it for reference
-	keyData := keys.String()
-	if err := os.WriteFile(keyPath, []byte(keyData), 0600); err != nil {
-		// Non-fatal - we can still use the keys
+	// Save keys using i2pkeys.StoreKeys for proper format
+	if err := i2pkeys.StoreKeys(i2pkeys.I2PKeys(keys), keyPath); err != nil {
 		fmt.Printf("[!] Warning: failed to save keys to %s: %v\n", keyPath, err)
+		fmt.Printf("[!] Keys will not persist across restarts!\n")
 	} else {
-		fmt.Printf("[*] Keys saved to %s\n", keyPath)
+		fmt.Printf("[+] Keys saved to %s\n", keyPath)
+		fmt.Printf("[+] Your B32 address: %s.b32.i2p\n", keys.Addr().Base32())
 	}
 
 	return keys, nil
@@ -177,14 +183,13 @@ func GenerateDestinationKeys(samHost string, samPort int, keyPath string) (strin
 		return "", fmt.Errorf("failed to generate keys: %w", err)
 	}
 
-	// Save keys using String() format (consistent with loadOrGenerateKeys)
-	keyData := keys.String()
-	if err := os.WriteFile(keyPath, []byte(keyData), 0600); err != nil {
+	// Save keys using i2pkeys.StoreKeys for proper format
+	if err := i2pkeys.StoreKeys(i2pkeys.I2PKeys(keys), keyPath); err != nil {
 		return "", fmt.Errorf("failed to save keys: %w", err)
 	}
 
-	// Calculate and return B32 address
-	return calculateB32(keys.Addr().Base64()), nil
+	// Return B32 address using the built-in method
+	return keys.Addr().Base32(), nil
 }
 
 // CheckSAMStatus tests connectivity to the SAM bridge
