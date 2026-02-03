@@ -16,6 +16,7 @@ type Config struct {
 
 	// TLS settings for Sliver connection
 	SkipTLSVerify bool
+	SliverCA      string // Optional path to CA cert for TLS verification
 }
 
 // DefaultConfig returns a config with sensible defaults

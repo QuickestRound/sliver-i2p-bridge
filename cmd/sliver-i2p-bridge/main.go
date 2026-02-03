@@ -23,6 +23,7 @@ var (
 	cfgFile     string
 	sliverHost  string
 	sliverPort  int
+	sliverCA    string
 	samHost     string
 	samPort     int
 	persistKeys bool
@@ -80,6 +81,7 @@ Implants connect through I2P, you control them through Sliver normally.
 	// Start command flags
 	startCmd.Flags().StringVar(&sliverHost, "sliver-host", "127.0.0.1", "Sliver HTTPS listener host")
 	startCmd.Flags().IntVar(&sliverPort, "sliver-port", 8443, "Sliver HTTPS listener port")
+	startCmd.Flags().StringVar(&sliverCA, "sliver-ca", "", "Path to CA cert for TLS verification (optional, enables strict TLS)")
 	startCmd.Flags().StringVar(&samHost, "sam-host", "127.0.0.1", "I2P SAM bridge host")
 	startCmd.Flags().IntVar(&samPort, "sam-port", 7656, "I2P SAM bridge port")
 	startCmd.Flags().BoolVar(&persistKeys, "persist-keys", true, "Use persistent destination keys (recommended for production)")
@@ -100,11 +102,12 @@ func runStart(cmd *cobra.Command, args []string) {
 	cfg := &config.Config{
 		SliverHost:    sliverHost,
 		SliverPort:    sliverPort,
+		SliverCA:      sliverCA,
 		SAMHost:       samHost,
 		SAMPort:       samPort,
 		PersistKeys:   persistKeys,
 		KeyPath:       keyPath,
-		SkipTLSVerify: true, // Sliver uses self-signed certs
+		SkipTLSVerify: sliverCA == "", // Skip if no CA provided, verify if CA is set
 	}
 
 	fmt.Println("[*] sliver-i2p-bridge starting...")

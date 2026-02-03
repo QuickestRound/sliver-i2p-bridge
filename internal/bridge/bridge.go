@@ -61,6 +61,7 @@ func (b *Bridge) Start() error {
 		b.cfg.SliverHost,
 		b.cfg.SliverPort,
 		b.cfg.SkipTLSVerify,
+		b.cfg.SliverCA,
 	)
 
 	b.running = true

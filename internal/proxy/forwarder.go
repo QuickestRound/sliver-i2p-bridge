@@ -2,9 +2,11 @@ package proxy
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +17,7 @@ type Forwarder struct {
 	sliverHost    string
 	sliverPort    int
 	skipTLSVerify bool
+	caPath        string // Optional CA certificate path
 
 	activeConns sync.WaitGroup
 	shutdown    chan struct{}
@@ -22,11 +25,12 @@ type Forwarder struct {
 }
 
 // NewForwarder creates a new traffic forwarder
-func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool) *Forwarder {
+func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath string) *Forwarder {
 	return &Forwarder{
 		sliverHost:    sliverHost,
 		sliverPort:    sliverPort,
 		skipTLSVerify: skipTLSVerify,
+		caPath:        caPath,
 		shutdown:      make(chan struct{}),
 	}
 }
@@ -47,6 +51,20 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: f.skipTLSVerify, // Sliver uses self-signed certs
+	}
+
+	// Load CA certificate if provided for proper TLS verification
+	if f.caPath != "" {
+		caCert, err := os.ReadFile(f.caPath)
+		if err != nil {
+			return fmt.Errorf("failed to read CA certificate: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return fmt.Errorf("failed to parse CA certificate")
+		}
+		tlsConfig.RootCAs = caCertPool
+		tlsConfig.InsecureSkipVerify = false // Override skip if CA is provided
 	}
 
 	sliverConn, err := tls.DialWithDialer(
