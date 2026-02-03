@@ -148,10 +148,11 @@ func runStart(cmd *cobra.Command, args []string) {
 }
 
 func runStop(cmd *cobra.Command, args []string) {
-	fmt.Println("[*] Sending stop signal to bridge...")
-	// In a real implementation, this would communicate with a running instance
-	// For now, we rely on SIGTERM
-	fmt.Println("[+] Use Ctrl+C on the running bridge or kill the process.")
+	fmt.Println("[*] The 'stop' command is a placeholder.")
+	fmt.Println("[*] To stop the bridge:")
+	fmt.Println("    - If running in foreground: Ctrl+C")
+	fmt.Println("    - If running as systemd service: sudo systemctl stop sliver-i2p-bridge")
+	fmt.Println("    - Otherwise: kill $(pidof sliver-i2p-bridge)")
 }
 
 func runStatus(cmd *cobra.Command, args []string) {

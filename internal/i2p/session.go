@@ -137,6 +137,10 @@ func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
 		fmt.Printf("[!] Warning: failed to save keys to %s: %v\n", keyPath, err)
 		fmt.Printf("[!] Keys will not persist across restarts!\n")
 	} else {
+		// SECURITY: Ensure key file is only readable by owner (0600)
+		if err := os.Chmod(keyPath, 0600); err != nil {
+			fmt.Printf("[!] Warning: could not set key file permissions: %v\n", err)
+		}
 		fmt.Printf("[+] Keys saved to %s\n", keyPath)
 		fmt.Printf("[+] Your B32 address: %s.b32.i2p\n", keys.Addr().Base32())
 	}
@@ -162,6 +166,12 @@ func GenerateDestinationKeys(samHost string, samPort int, keyPath string) (strin
 	// Save keys using i2pkeys.StoreKeys for proper format
 	if err := i2pkeys.StoreKeys(i2pkeys.I2PKeys(keys), keyPath); err != nil {
 		return "", fmt.Errorf("failed to save keys: %w", err)
+	}
+
+	// SECURITY: Ensure key file is only readable by owner (0600)
+	// This prevents other users from stealing the I2P identity
+	if err := os.Chmod(keyPath, 0600); err != nil {
+		return "", fmt.Errorf("failed to set key file permissions: %w", err)
 	}
 
 	// Return B32 address using the built-in method
