@@ -49,12 +49,12 @@ if [ -f "$I2P_CONFIG" ]; then
         echo "[*] Enabling SAM bridge in I2P config..."
         
         # Find the SAM clientApp ID by parsing the entire file
-        # Look for lines like: clientApp.N.main=net.i2p.sam.SAMBridge
-        SAM_ID=$(grep -oP 'clientApp\.\d+(?=\.main=net\.i2p\.sam\.SAMBridge)' "$I2P_CONFIG" | head -1)
+        # Look for lines like: clientApp.N.main=net.i2p.sam.SAMBridge (with optional spaces)
+        SAM_ID=$(grep -oP 'clientApp\.\d+(?=\s*\.\s*main\s*=\s*net\.i2p\.sam\.SAMBridge)' "$I2P_CONFIG" | head -1)
         
         if [ -n "$SAM_ID" ]; then
-            # Enable SAM bridge
-            sudo sed -i "s/${SAM_ID}.startOnLoad=false/${SAM_ID}.startOnLoad=true/" "$I2P_CONFIG" || true
+            # Enable SAM bridge (handle optional spaces around = in both search and replace)
+            sudo sed -i -E "s/(${SAM_ID}[[:space:]]*\.[[:space:]]*startOnLoad[[:space:]]*=[[:space:]]*)false/\1true/" "$I2P_CONFIG" || true
             echo "[+] SAM bridge enabled (${SAM_ID})"
             
             # Verify the change was applied

@@ -71,8 +71,11 @@ func (b *Bridge) Start() error {
 	return nil
 }
 
-// acceptLoop handles incoming I2P connections
+// acceptLoop handles incoming I2P connections with auto-reconnection
 func (b *Bridge) acceptLoop() {
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 5
+
 	for {
 		select {
 		case <-b.shutdown:
@@ -85,12 +88,30 @@ func (b *Bridge) acceptLoop() {
 				case <-b.shutdown:
 					return
 				default:
-					fmt.Printf("[!] Accept error: %v\n", err)
-					// Backoff to prevent CPU exhaustion if SAM goes down
-					time.Sleep(1 * time.Second)
-					continue
 				}
+
+				consecutiveErrors++
+				fmt.Printf("[!] Accept error (%d/%d): %v\n", consecutiveErrors, maxConsecutiveErrors, err)
+
+				// If too many consecutive errors, try to reconnect to SAM
+				if consecutiveErrors >= maxConsecutiveErrors {
+					fmt.Printf("[!] Too many errors, attempting SAM reconnection...\n")
+					if b.tryReconnect() {
+						fmt.Printf("[+] SAM reconnection successful!\n")
+						consecutiveErrors = 0
+					} else {
+						fmt.Printf("[!] SAM reconnection failed, will retry in 10s\n")
+						time.Sleep(10 * time.Second)
+					}
+				} else {
+					// Backoff to prevent CPU exhaustion
+					time.Sleep(1 * time.Second)
+				}
+				continue
 			}
+
+			// Reset error counter on successful accept
+			consecutiveErrors = 0
 
 			// Handle connection in goroutine
 			go func() {
@@ -100,6 +121,40 @@ func (b *Bridge) acceptLoop() {
 			}()
 		}
 	}
+}
+
+// tryReconnect attempts to reinitialize the SAM session
+func (b *Bridge) tryReconnect() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Close existing session
+	if b.session != nil {
+		b.session.Close()
+	}
+
+	// Create new session
+	session, err := i2p.NewSession(
+		b.cfg.SAMHost,
+		b.cfg.SAMPort,
+		b.cfg.KeyPath,
+		b.cfg.PersistKeys,
+	)
+	if err != nil {
+		fmt.Printf("[!] Failed to create new session: %v\n", err)
+		return false
+	}
+
+	// Start the session
+	if err := session.Start(); err != nil {
+		session.Close()
+		fmt.Printf("[!] Failed to start new session: %v\n", err)
+		return false
+	}
+
+	b.session = session
+	fmt.Printf("[+] Reconnected with B32: %s.b32.i2p\n", session.GetB32Address())
+	return true
 }
 
 // Stop gracefully shuts down the bridge
