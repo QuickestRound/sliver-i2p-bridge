@@ -182,6 +182,8 @@ func (b *Bridge) Stop() {
 
 // GetDestination returns the full I2P destination
 func (b *Bridge) GetDestination() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if b.session == nil {
 		return ""
 	}
@@ -190,6 +192,8 @@ func (b *Bridge) GetDestination() string {
 
 // GetB32Address returns the base32 address
 func (b *Bridge) GetB32Address() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if b.session == nil {
 		return ""
 	}
