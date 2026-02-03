@@ -11,7 +11,7 @@ import (
 )
 
 // storeKeysSecure writes keys to file with 0600 permissions from the start
-// This eliminates the race condition where keys are briefly world-readable
+// Uses atomic write (temp file + rename) to prevent corruption on crash
 func storeKeysSecure(keys sam3.I2PKeys, keyPath string) error {
 	// Create directory if it doesn't exist (with secure 0700 permissions)
 	dir := filepath.Dir(keyPath)
@@ -19,17 +19,38 @@ func storeKeysSecure(keys sam3.I2PKeys, keyPath string) error {
 		return fmt.Errorf("failed to create key directory: %w", err)
 	}
 
-	// Create file with secure permissions from the start (0600 = owner read/write only)
-	file, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to create key file: %w", err)
+	// Enforce directory permissions in case it already existed with weaker perms
+	if err := os.Chmod(dir, 0700); err != nil {
+		return fmt.Errorf("failed to secure key directory: %w", err)
 	}
-	defer file.Close()
 
-	// Write keys in the same format as i2pkeys.StoreKeys (destination string)
-	_, err = file.WriteString(keys.String())
+	// Use atomic write: temp file -> sync -> rename
+	// This prevents key file corruption if crash/power loss during write
+	tmpFile := keyPath + ".tmp"
+	file, err := os.OpenFile(tmpFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
+		return fmt.Errorf("failed to create temp key file: %w", err)
+	}
+
+	// Write keys
+	if _, err := file.WriteString(keys.String()); err != nil {
+		file.Close()
+		os.Remove(tmpFile)
 		return fmt.Errorf("failed to write keys: %w", err)
+	}
+
+	// Sync to disk before rename (ensures data durability)
+	if err := file.Sync(); err != nil {
+		file.Close()
+		os.Remove(tmpFile)
+		return fmt.Errorf("failed to sync keys: %w", err)
+	}
+	file.Close()
+
+	// Atomic rename (on POSIX this is atomic within same filesystem)
+	if err := os.Rename(tmpFile, keyPath); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("failed to finalize key file: %w", err)
 	}
 
 	return nil
