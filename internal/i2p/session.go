@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/go-i2p/i2pkeys"
 	sam3 "github.com/go-i2p/go-sam-go"
@@ -12,6 +13,12 @@ import (
 // storeKeysSecure writes keys to file with 0600 permissions from the start
 // This eliminates the race condition where keys are briefly world-readable
 func storeKeysSecure(keys sam3.I2PKeys, keyPath string) error {
+	// Create directory if it doesn't exist (with secure 0700 permissions)
+	dir := filepath.Dir(keyPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create key directory: %w", err)
+	}
+
 	// Create file with secure permissions from the start (0600 = owner read/write only)
 	file, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {

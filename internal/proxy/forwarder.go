@@ -30,21 +30,60 @@ type Forwarder struct {
 	sliverHost    string
 	sliverPort    int
 	skipTLSVerify bool
-	caPath        string // Optional CA certificate path
+	rootCAs       *x509.CertPool // Pre-loaded CA pool for efficiency
 
 	activeConns sync.WaitGroup
 	shutdown    chan struct{}
 	closed      atomic.Bool
 }
 
+// IdleTimeout is the maximum time a connection can be idle before being closed
+// This prevents ghost connections from exhausting the connection pool
+const IdleTimeout = 5 * time.Minute
+
 // NewForwarder creates a new traffic forwarder
 func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath string) *Forwarder {
-	return &Forwarder{
+	f := &Forwarder{
 		sliverHost:    sliverHost,
 		sliverPort:    sliverPort,
 		skipTLSVerify: skipTLSVerify,
-		caPath:        caPath,
 		shutdown:      make(chan struct{}),
+	}
+
+	// Pre-load CA certificate if provided (avoids disk I/O on every connection)
+	if caPath != "" {
+		caCert, err := os.ReadFile(caPath)
+		if err == nil {
+			pool := x509.NewCertPool()
+			if pool.AppendCertsFromPEM(caCert) {
+				f.rootCAs = pool
+				f.skipTLSVerify = false // Enable verification when CA is loaded
+			}
+		}
+	}
+
+	return f
+}
+
+// copyWithTimeout copies data with an idle timeout to detect ghost connections
+// This prevents connection pool exhaustion from stalled I2P connections
+func copyWithTimeout(dst io.Writer, src net.Conn, timeout time.Duration) error {
+	buffer := make([]byte, 32*1024)
+	for {
+		// Set read deadline before every read
+		src.SetReadDeadline(time.Now().Add(timeout))
+		n, err := src.Read(buffer)
+		if n > 0 {
+			if _, wErr := dst.Write(buffer[:n]); wErr != nil {
+				return wErr
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
 	}
 }
 
@@ -66,18 +105,10 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 		InsecureSkipVerify: f.skipTLSVerify, // Sliver uses self-signed certs
 	}
 
-	// Load CA certificate if provided for proper TLS verification
-	if f.caPath != "" {
-		caCert, err := os.ReadFile(f.caPath)
-		if err != nil {
-			return fmt.Errorf("failed to read CA certificate: %w", err)
-		}
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return fmt.Errorf("failed to parse CA certificate")
-		}
-		tlsConfig.RootCAs = caCertPool
-		tlsConfig.InsecureSkipVerify = false // Override skip if CA is provided
+	// Use pre-loaded CA if available (cached in NewForwarder)
+	if f.rootCAs != nil {
+		tlsConfig.RootCAs = f.rootCAs
+		tlsConfig.InsecureSkipVerify = false
 	}
 
 	sliverConn, err := tls.DialWithDialer(
@@ -109,9 +140,9 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 	var copyErr error
 	var errMu sync.Mutex
 
-	// I2P -> Sliver
+	// I2P -> Sliver (with idle timeout to detect ghost connections)
 	go func() {
-		_, err := io.Copy(sliverConn, i2pConn)
+		err := copyWithTimeout(sliverConn, i2pConn, IdleTimeout)
 		errMu.Lock()
 		// Only capture real errors, not expected close errors
 		if copyErr == nil && err != nil && !isExpectedCloseError(err) {
@@ -128,9 +159,9 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 		}
 	}()
 
-	// Sliver -> I2P
+	// Sliver -> I2P (with idle timeout to detect ghost connections)
 	go func() {
-		_, err := io.Copy(i2pConn, sliverConn)
+		err := copyWithTimeout(i2pConn, sliverConn, IdleTimeout)
 		errMu.Lock()
 		// Only capture real errors, not expected close errors
 		if copyErr == nil && err != nil && !isExpectedCloseError(err) {
