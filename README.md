@@ -1,4 +1,4 @@
-QuickestRound14's shit (vibe coded) Sliver edit. Made for personal use.
+QuickestRound14's Sliver edit. Made for personal use.
 
 # sliver-i2p-bridge
 
