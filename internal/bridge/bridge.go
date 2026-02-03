@@ -19,14 +19,27 @@ type Bridge struct {
 	running  bool
 	mu       sync.Mutex
 	shutdown chan struct{}
+	sem      chan struct{} // Semaphore for connection limiting
 }
+
+// MaxConcurrentConnections limits simultaneous connections to prevent DoS
+const MaxConcurrentConnections = 100
 
 // New creates a new Bridge instance
 func New(cfg *config.Config) (*Bridge, error) {
 	return &Bridge{
 		cfg:      cfg,
 		shutdown: make(chan struct{}),
+		sem:      make(chan struct{}, MaxConcurrentConnections),
 	}, nil
+}
+
+// getSession returns the current session with proper locking
+// This prevents data races when reconnecting
+func (b *Bridge) getSession() *i2p.Session {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.session
 }
 
 // Start initializes the I2P session and begins accepting connections
@@ -82,7 +95,14 @@ func (b *Bridge) acceptLoop() {
 		case <-b.shutdown:
 			return
 		default:
-			conn, err := b.session.Accept()
+			// Get session with proper locking to prevent data race
+			currentSession := b.getSession()
+			if currentSession == nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
+			conn, err := currentSession.Accept()
 			if err != nil {
 				// Check if we're shutting down
 				select {
@@ -114,12 +134,20 @@ func (b *Bridge) acceptLoop() {
 			// Reset error counter on successful accept
 			consecutiveErrors = 0
 
-			// Handle connection in goroutine
-			go func() {
-				if err := b.forwarder.Forward(conn); err != nil {
-					fmt.Printf("[!] Forward error: %v\n", err)
-				}
-			}()
+			// Handle connection with semaphore for DoS protection
+			select {
+			case b.sem <- struct{}{}: // Acquire connection slot
+				go func() {
+					defer func() { <-b.sem }() // Release slot when done
+					if err := b.forwarder.Forward(conn); err != nil {
+						fmt.Printf("[!] Forward error: %v\n", err)
+					}
+				}()
+			default:
+				// At max connections, drop this one
+				fmt.Printf("[!] Dropping connection: max %d concurrent connections reached\n", MaxConcurrentConnections)
+				conn.Close()
+			}
 		}
 	}
 }

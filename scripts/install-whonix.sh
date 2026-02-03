@@ -100,9 +100,12 @@ if ! command -v go &> /dev/null; then
     # SECURITY: Fail-closed - if we can't verify, we abort
     echo "[*] Verifying SHA256 checksum..."
     EXPECTED_HASH=$(curl -s "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz.sha256")
-    if [ -z "$EXPECTED_HASH" ]; then
-        echo "[!] SECURITY: Could not fetch checksum - aborting"
-        echo "[!] This could indicate a network issue or MITM attack"
+    
+    # Validate response is a proper SHA256 hash (64 hex chars), not HTML error page
+    if ! echo "$EXPECTED_HASH" | grep -qE '^[a-f0-9]{64}$'; then
+        echo "[!] SECURITY: Invalid checksum format - aborting"
+        echo "[!] Expected 64 hex chars, got: ${EXPECTED_HASH:0:50}..."
+        echo "[!] This could indicate a 404, network issue, or MITM attack"
         rm -f /tmp/go.tar.gz
         exit 1
     fi
