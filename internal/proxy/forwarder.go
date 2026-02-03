@@ -40,7 +40,8 @@ type Forwarder struct {
 
 // IdleTimeout is the maximum time a connection can be idle before being closed
 // This prevents ghost connections from exhausting the connection pool
-const IdleTimeout = 5 * time.Minute
+// Set to 60 minutes to support slow beacon intervals (e.g., 10-30 min)
+const IdleTimeout = 60 * time.Minute
 
 // NewForwarder creates a new traffic forwarder
 func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath string) *Forwarder {
@@ -52,15 +53,21 @@ func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath 
 	}
 
 	// Pre-load CA certificate if provided (avoids disk I/O on every connection)
+	// CRITICAL: Fail loud if user explicitly provided a CA that can't be loaded
 	if caPath != "" {
 		caCert, err := os.ReadFile(caPath)
-		if err == nil {
-			pool := x509.NewCertPool()
-			if pool.AppendCertsFromPEM(caCert) {
-				f.rootCAs = pool
-				f.skipTLSVerify = false // Enable verification when CA is loaded
-			}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[!] CRITICAL: Failed to read CA file '%s': %v\n", caPath, err)
+			os.Exit(1)
 		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caCert) {
+			fmt.Fprintf(os.Stderr, "[!] CRITICAL: Failed to parse CA certificate from '%s'\n", caPath)
+			os.Exit(1)
+		}
+		f.rootCAs = pool
+		f.skipTLSVerify = false // Enable verification when CA is loaded
+		fmt.Printf("[+] Loaded CA certificate from %s\n", caPath)
 	}
 
 	return f

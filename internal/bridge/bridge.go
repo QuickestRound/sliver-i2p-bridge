@@ -23,7 +23,8 @@ type Bridge struct {
 }
 
 // MaxConcurrentConnections limits simultaneous connections to prevent DoS
-const MaxConcurrentConnections = 100
+// Set to 1000 to support larger Red Team operations while still providing protection
+const MaxConcurrentConnections = 1000
 
 // New creates a new Bridge instance
 func New(cfg *config.Config) (*Bridge, error) {
