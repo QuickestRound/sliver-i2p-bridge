@@ -6,8 +6,10 @@ Requires=i2p.service
 
 [Service]
 Type=simple
-User=root
-Group=root
+# Use DynamicUser for automatic sandboxing - creates ephemeral user at runtime
+# Alternatively, create a dedicated user: useradd -r -s /bin/false sliver-bridge
+DynamicUser=yes
+StateDirectory=sliver-i2p-bridge
 WorkingDirectory=/var/lib/sliver-i2p-bridge
 
 # Main execution

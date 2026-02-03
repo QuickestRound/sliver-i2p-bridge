@@ -108,10 +108,11 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 		sliverConn.Close()
 		return nil
 	case <-done:
-		// Wait a tiny bit for the other goroutine to finish
+		// Wait for the other goroutine to finish cleanup
+		// Use 1 second timeout for high-latency I2P connections
 		select {
 		case <-done:
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(1 * time.Second):
 		}
 		errMu.Lock()
 		err := copyErr

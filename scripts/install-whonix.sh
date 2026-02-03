@@ -50,11 +50,19 @@ if [ -f "$I2P_CONFIG" ]; then
         # Find the line with SAMBridge and its associated startOnLoad setting
         SAM_LINE=$(grep -n "SAMBridge" "$I2P_CONFIG" | head -1 | cut -d: -f1)
         if [ -n "$SAM_LINE" ]; then
-            # Extract the clientApp.N prefix from nearby lines
-            SAM_ID=$(grep -B5 "SAMBridge" "$I2P_CONFIG" | grep -oP 'clientApp\.\d+' | head -1)
+            # Extract the clientApp.N prefix from nearby lines (expanded range for robustness)
+            SAM_ID=$(grep -B15 "SAMBridge" "$I2P_CONFIG" | grep -oP 'clientApp\.\d+' | tail -1)
             if [ -n "$SAM_ID" ]; then
                 sudo sed -i "s/${SAM_ID}.startOnLoad=false/${SAM_ID}.startOnLoad=true/" "$I2P_CONFIG" || true
                 echo "[+] SAM bridge enabled (${SAM_ID})"
+                # Verify the change was applied
+                if grep -q "${SAM_ID}.startOnLoad=true" "$I2P_CONFIG"; then
+                    echo "[+] Verified: SAM bridge is set to start on load"
+                else
+                    echo "[!] Warning: Could not verify SAM config change - check manually"
+                fi
+            else
+                echo "[!] Could not find SAM clientApp ID - check config manually"
             fi
         fi
     else
