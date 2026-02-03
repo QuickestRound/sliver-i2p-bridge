@@ -9,6 +9,25 @@ import (
 	sam3 "github.com/go-i2p/go-sam-go"
 )
 
+// storeKeysSecure writes keys to file with 0600 permissions from the start
+// This eliminates the race condition where keys are briefly world-readable
+func storeKeysSecure(keys sam3.I2PKeys, keyPath string) error {
+	// Create file with secure permissions from the start (0600 = owner read/write only)
+	file, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create key file: %w", err)
+	}
+	defer file.Close()
+
+	// Write keys in the same format as i2pkeys.StoreKeys (destination string)
+	_, err = file.WriteString(keys.String())
+	if err != nil {
+		return fmt.Errorf("failed to write keys: %w", err)
+	}
+
+	return nil
+}
+
 // Session manages an I2P streaming session via SAM
 type Session struct {
 	samAddr     string
@@ -132,15 +151,11 @@ func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
 		return sam3.I2PKeys{}, fmt.Errorf("failed to generate keys: %w", err)
 	}
 
-	// Save keys using i2pkeys.StoreKeys for proper format
-	if err := i2pkeys.StoreKeys(i2pkeys.I2PKeys(keys), keyPath); err != nil {
+	// Save keys securely (file created with 0600 permissions from the start)
+	if err := storeKeysSecure(keys, keyPath); err != nil {
 		fmt.Printf("[!] Warning: failed to save keys to %s: %v\n", keyPath, err)
 		fmt.Printf("[!] Keys will not persist across restarts!\n")
 	} else {
-		// SECURITY: Ensure key file is only readable by owner (0600)
-		if err := os.Chmod(keyPath, 0600); err != nil {
-			fmt.Printf("[!] Warning: could not set key file permissions: %v\n", err)
-		}
 		fmt.Printf("[+] Keys saved to %s\n", keyPath)
 		fmt.Printf("[+] Your B32 address: %s.b32.i2p\n", keys.Addr().Base32())
 	}
@@ -163,15 +178,9 @@ func GenerateDestinationKeys(samHost string, samPort int, keyPath string) (strin
 		return "", fmt.Errorf("failed to generate keys: %w", err)
 	}
 
-	// Save keys using i2pkeys.StoreKeys for proper format
-	if err := i2pkeys.StoreKeys(i2pkeys.I2PKeys(keys), keyPath); err != nil {
+	// Save keys securely (file created with 0600 permissions from the start)
+	if err := storeKeysSecure(keys, keyPath); err != nil {
 		return "", fmt.Errorf("failed to save keys: %w", err)
-	}
-
-	// SECURITY: Ensure key file is only readable by owner (0600)
-	// This prevents other users from stealing the I2P identity
-	if err := os.Chmod(keyPath, 0600); err != nil {
-		return "", fmt.Errorf("failed to set key file permissions: %w", err)
 	}
 
 	// Return B32 address using the built-in method

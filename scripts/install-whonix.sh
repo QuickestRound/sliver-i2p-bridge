@@ -48,9 +48,9 @@ if [ -f "$I2P_CONFIG" ]; then
     if grep -q "SAMBridge" "$I2P_CONFIG" 2>/dev/null; then
         echo "[*] Enabling SAM bridge in I2P config..."
         
-        # Find the SAM clientApp ID by parsing the entire file
+        # Find the SAM clientApp ID using POSIX-compatible grep -E (not -P)
         # Skip commented lines (#) and look for: clientApp.N.main=net.i2p.sam.SAMBridge
-        SAM_ID=$(grep -v '^\s*#' "$I2P_CONFIG" | grep -oP 'clientApp\.\d+(?=\s*\.\s*main\s*=\s*net\.i2p\.sam\.SAMBridge)' | head -1)
+        SAM_ID=$(grep -v '^\s*#' "$I2P_CONFIG" | grep -E 'clientApp\.[0-9]+\s*\.\s*main\s*=\s*net\.i2p\.sam\.SAMBridge' | sed -E 's/^(clientApp\.[0-9]+)\..*$/\1/' | head -1)
         
         if [ -n "$SAM_ID" ]; then
             # Enable SAM bridge (handle optional spaces around = in both search and replace)
