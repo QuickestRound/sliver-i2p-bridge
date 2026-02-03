@@ -1,13 +1,9 @@
 package i2p
 
 import (
-	"crypto/sha256"
-	"encoding/base32"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/go-i2p/i2pkeys"
 	sam3 "github.com/go-i2p/go-sam-go"
@@ -91,33 +87,11 @@ func (s *Session) GetDestination() string {
 }
 
 // GetB32Address returns the base32 address (without .b32.i2p suffix)
-// The B32 address is base32(SHA256(raw_destination_bytes)), lowercase, no padding
+// Uses the built-in i2pkeys method to avoid calculation errors
 func (s *Session) GetB32Address() string {
-	if s.destination == "" {
-		return ""
-	}
-	return calculateB32(s.destination)
-}
-
-// calculateB32 computes the B32 address from a base64 destination
-func calculateB32(destBase64 string) string {
-	// Decode the base64 destination to get raw bytes
-	destBytes, err := base64.StdEncoding.DecodeString(destBase64)
-	if err != nil {
-		// I2P uses a modified base64 alphabet, try URL-safe
-		destBytes, err = base64.URLEncoding.DecodeString(destBase64)
-		if err != nil {
-			// Last resort: hash the string directly
-			destBytes = []byte(destBase64)
-		}
-	}
-
-	// SHA256 hash of raw destination bytes
-	hash := sha256.Sum256(destBytes)
-
-	// Base32 encode and lowercase (I2P uses lowercase base32)
-	b32 := base32.StdEncoding.EncodeToString(hash[:])
-	return strings.ToLower(strings.TrimRight(b32, "="))
+	// Use the built-in method from i2pkeys package
+	// This is more reliable than manual calculation
+	return s.keys.Addr().Base32()
 }
 
 // Close shuts down the I2P session

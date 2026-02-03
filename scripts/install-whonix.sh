@@ -43,10 +43,22 @@ echo "[*] Configuring I2P SAM bridge..."
 I2P_CONFIG="/var/lib/i2p/i2p-config/clients.config"
 
 if [ -f "$I2P_CONFIG" ]; then
-    # Enable SAM bridge if not already enabled
-    if ! grep -q "clientApp.3.startOnLoad=true" "$I2P_CONFIG" 2>/dev/null; then
+    # Enable SAM bridge - search for SAM class rather than hardcoded clientApp number
+    # SAM is identified by its class name: net.i2p.sam.SAMBridge
+    if grep -q "SAMBridge" "$I2P_CONFIG" 2>/dev/null; then
         echo "[*] Enabling SAM bridge in I2P config..."
-        sudo sed -i 's/clientApp.3.startOnLoad=false/clientApp.3.startOnLoad=true/' "$I2P_CONFIG" || true
+        # Find the line with SAMBridge and its associated startOnLoad setting
+        SAM_LINE=$(grep -n "SAMBridge" "$I2P_CONFIG" | head -1 | cut -d: -f1)
+        if [ -n "$SAM_LINE" ]; then
+            # Extract the clientApp.N prefix from nearby lines
+            SAM_ID=$(grep -B5 "SAMBridge" "$I2P_CONFIG" | grep -oP 'clientApp\.\d+' | head -1)
+            if [ -n "$SAM_ID" ]; then
+                sudo sed -i "s/${SAM_ID}.startOnLoad=false/${SAM_ID}.startOnLoad=true/" "$I2P_CONFIG" || true
+                echo "[+] SAM bridge enabled (${SAM_ID})"
+            fi
+        fi
+    else
+        echo "[!] SAM bridge not found in config - may need manual configuration"
     fi
 else
     echo "[!] I2P config not found at $I2P_CONFIG"
@@ -57,8 +69,21 @@ fi
 echo "[*] Checking Go installation..."
 if ! command -v go &> /dev/null; then
     echo "[*] Installing Go..."
-    GO_VERSION="1.21.6"
+    # Get latest stable Go version dynamically
+    GO_VERSION=$(curl -s 'https://go.dev/VERSION?m=text' | head -1 | sed 's/go//')
+    if [ -z "$GO_VERSION" ]; then
+        # Fallback to known stable version
+        GO_VERSION="1.22.5"
+        echo "[!] Could not fetch latest Go version, using fallback: $GO_VERSION"
+    else
+        echo "[*] Latest Go version: $GO_VERSION"
+    fi
+    
     wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz
+    if [ $? -ne 0 ]; then
+        echo "[!] Failed to download Go $GO_VERSION"
+        exit 1
+    fi
     sudo tar -C /usr/local -xzf /tmp/go.tar.gz
     rm /tmp/go.tar.gz
     
