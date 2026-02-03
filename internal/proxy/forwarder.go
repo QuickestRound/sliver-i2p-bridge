@@ -74,7 +74,8 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 		}
 		errMu.Unlock()
 		// Close connections to unblock the other goroutine
-		sliverConn.CloseWrite()
+		// Note: tls.Conn doesn't support CloseWrite, so we use Close
+		sliverConn.Close()
 		i2pConn.Close()
 		select {
 		case done <- struct{}{}:

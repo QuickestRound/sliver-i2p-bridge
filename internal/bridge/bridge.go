@@ -3,6 +3,7 @@ package bridge
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"sliver-i2p-bridge/internal/config"
 	"sliver-i2p-bridge/internal/i2p"
@@ -85,6 +86,8 @@ func (b *Bridge) acceptLoop() {
 					return
 				default:
 					fmt.Printf("[!] Accept error: %v\n", err)
+					// Backoff to prevent CPU exhaustion if SAM goes down
+					time.Sleep(1 * time.Second)
 					continue
 				}
 			}
