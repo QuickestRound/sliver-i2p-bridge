@@ -33,10 +33,9 @@ darwin-arm64:
 # Build all platforms
 all: linux linux-arm64 windows darwin darwin-arm64
 
-# Clean build artifacts
+# Clean build artifacts (NEVER deletes destination.keys - that would orphan your implants!)
 clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME)-* *.exe
-	rm -f destination.keys
 	rm -rf dist/
 
 # Install to system (Linux only)
