@@ -1,6 +1,6 @@
-# Binaries
-sliver-i2p-bridge
-sliver-i2p-bridge.exe
+# Binaries (only in root, not cmd/ directory)
+/sliver-i2p-bridge
+/sliver-i2p-bridge.exe
 sliver-i2p-bridge-linux-*
 sliver-i2p-bridge-darwin-*
 *.exe
