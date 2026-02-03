@@ -47,23 +47,26 @@ if [ -f "$I2P_CONFIG" ]; then
     # SAM is identified by its class name: net.i2p.sam.SAMBridge
     if grep -q "SAMBridge" "$I2P_CONFIG" 2>/dev/null; then
         echo "[*] Enabling SAM bridge in I2P config..."
-        # Find the line with SAMBridge and its associated startOnLoad setting
-        SAM_LINE=$(grep -n "SAMBridge" "$I2P_CONFIG" | head -1 | cut -d: -f1)
-        if [ -n "$SAM_LINE" ]; then
-            # Extract the clientApp.N prefix from nearby lines (expanded range for robustness)
-            SAM_ID=$(grep -B15 "SAMBridge" "$I2P_CONFIG" | grep -oP 'clientApp\.\d+' | tail -1)
-            if [ -n "$SAM_ID" ]; then
-                sudo sed -i "s/${SAM_ID}.startOnLoad=false/${SAM_ID}.startOnLoad=true/" "$I2P_CONFIG" || true
-                echo "[+] SAM bridge enabled (${SAM_ID})"
-                # Verify the change was applied
-                if grep -q "${SAM_ID}.startOnLoad=true" "$I2P_CONFIG"; then
-                    echo "[+] Verified: SAM bridge is set to start on load"
-                else
-                    echo "[!] Warning: Could not verify SAM config change - check manually"
-                fi
+        
+        # Find the SAM clientApp ID by parsing the entire file
+        # Look for lines like: clientApp.N.main=net.i2p.sam.SAMBridge
+        SAM_ID=$(grep -oP 'clientApp\.\d+(?=\.main=net\.i2p\.sam\.SAMBridge)' "$I2P_CONFIG" | head -1)
+        
+        if [ -n "$SAM_ID" ]; then
+            # Enable SAM bridge
+            sudo sed -i "s/${SAM_ID}.startOnLoad=false/${SAM_ID}.startOnLoad=true/" "$I2P_CONFIG" || true
+            echo "[+] SAM bridge enabled (${SAM_ID})"
+            
+            # Verify the change was applied
+            if grep -q "${SAM_ID}.startOnLoad=true" "$I2P_CONFIG"; then
+                echo "[+] Verified: SAM bridge is set to start on load"
             else
-                echo "[!] Could not find SAM clientApp ID - check config manually"
+                echo "[!] Warning: Could not verify SAM config change - check manually"
+                echo "[!] Expected: ${SAM_ID}.startOnLoad=true"
             fi
+        else
+            echo "[!] Could not find SAM clientApp ID in config"
+            echo "[!] Please manually enable SAM bridge in I2P router console (http://127.0.0.1:7657)"
         fi
     else
         echo "[!] SAM bridge not found in config - may need manual configuration"
