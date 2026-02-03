@@ -60,6 +60,12 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 	}
 	defer sliverConn.Close()
 
+	// Set idle timeout to prevent zombie connections (10 minutes)
+	// This ensures hung connections are killed if no data flows
+	idleTimeout := 10 * time.Minute
+	i2pConn.SetDeadline(time.Now().Add(idleTimeout))
+	sliverConn.SetDeadline(time.Now().Add(idleTimeout))
+
 	// Use a done channel to signal when either copy completes
 	done := make(chan struct{})
 	var copyErr error
