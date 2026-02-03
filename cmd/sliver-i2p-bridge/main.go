@@ -156,7 +156,7 @@ func runStop(cmd *cobra.Command, args []string) {
 }
 
 func runStatus(cmd *cobra.Command, args []string) {
-	fmt.Println("[*] Checking I2P SAM bridge status...")
+	fmt.Println("[*] Checking I2P SAM bridge connectivity...")
 	
 	cfg := &config.Config{
 		SAMHost: samHost,
@@ -170,11 +170,13 @@ func runStatus(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf("[+] SAM Bridge: %s\n", status.SAMStatus)
-	if status.SessionActive {
-		fmt.Printf("[+] Session: ACTIVE\n")
-		fmt.Printf("[+] Destination: %s\n", status.Destination)
+	if status.SAMStatus == "CONNECTED" {
+		fmt.Println("[+] I2P router is responsive and accepting connections")
+		fmt.Println("[*] Note: This only checks SAM connectivity, not bridge session state")
+		fmt.Println("[*] For bridge logs: journalctl -u sliver-i2p-bridge -f")
 	} else {
-		fmt.Println("[-] Session: INACTIVE")
+		fmt.Println("[-] Cannot connect to SAM bridge")
+		fmt.Println("[*] Ensure I2P router is running and SAM is enabled on port 7656")
 	}
 }
 
