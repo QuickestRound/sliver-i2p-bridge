@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -111,14 +112,32 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 		tlsConfig.InsecureSkipVerify = false
 	}
 
-	sliverConn, err := tls.DialWithDialer(
-		&net.Dialer{Timeout: 30 * time.Second},
-		"tcp",
-		sliverAddr,
-		tlsConfig,
-	)
+	// Use context-based dial to allow graceful shutdown during connection attempts
+	// This prevents Stop() from hanging if Sliver is unreachable
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Cancel immediately if shutdown is triggered
+	go func() {
+		select {
+		case <-f.shutdown:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	// Dial with context and then upgrade to TLS
+	dialer := &net.Dialer{}
+	rawConn, err := dialer.DialContext(ctx, "tcp", sliverAddr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Sliver at %s: %w", sliverAddr, err)
+	}
+
+	// Upgrade to TLS
+	sliverConn := tls.Client(rawConn, tlsConfig)
+	if err := sliverConn.HandshakeContext(ctx); err != nil {
+		rawConn.Close()
+		return fmt.Errorf("TLS handshake failed: %w", err)
 	}
 	defer sliverConn.Close()
 
