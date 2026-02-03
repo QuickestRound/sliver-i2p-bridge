@@ -11,7 +11,8 @@
 If you discover a security vulnerability in sliver-i2p-bridge, please report it responsibly:
 
 1. **DO NOT** open a public GitHub issue
-2. Email the maintainers directly (see repository contacts)
+2. Use GitHub's **private vulnerability reporting** feature:
+   - Go to the Security tab → Report a vulnerability
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
