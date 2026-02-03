@@ -91,10 +91,18 @@ func (f *Forwarder) Forward(i2pConn net.Conn) error {
 	}
 	defer sliverConn.Close()
 
+	// Enable TCP KeepAlive to detect dead/ghost connections
+	// This helps release semaphore slots when peers disappear without FIN/RST
+	if tcpConn, ok := sliverConn.NetConn().(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(3 * time.Minute)
+	}
+
 	// Note: We intentionally do NOT set connection deadlines here.
 	// SetDeadline() sets an absolute wall-clock time, not an idle timeout.
 	// For C2 over I2P (high latency), it's better to let the application
 	// layer (Sliver) handle timeouts and reconnection logic.
+	// TCP KeepAlive above handles detection of truly dead peers.
 
 	// Use a done channel to signal when either copy completes
 	done := make(chan struct{})

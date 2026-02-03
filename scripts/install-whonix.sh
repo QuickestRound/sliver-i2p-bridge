@@ -57,12 +57,12 @@ if [ -f "$I2P_CONFIG" ]; then
             sudo sed -i -E "s/(${SAM_ID}[[:space:]]*\.[[:space:]]*startOnLoad[[:space:]]*=[[:space:]]*)false/\1true/" "$I2P_CONFIG" || true
             echo "[+] SAM bridge enabled (${SAM_ID})"
             
-            # Verify the change was applied
-            if grep -q "${SAM_ID}.startOnLoad=true" "$I2P_CONFIG"; then
+            # Verify the change was applied (allow spaces around = to match sed replacement)
+            if grep -qE "${SAM_ID}\.startOnLoad\s*=\s*true" "$I2P_CONFIG"; then
                 echo "[+] Verified: SAM bridge is set to start on load"
             else
                 echo "[!] Warning: Could not verify SAM config change - check manually"
-                echo "[!] Expected: ${SAM_ID}.startOnLoad=true"
+                echo "[!] Expected: ${SAM_ID}.startOnLoad=true (or with spaces)"
             fi
         else
             echo "[!] Could not find SAM clientApp ID in config"
@@ -99,7 +99,8 @@ if ! command -v go &> /dev/null; then
     # Verify SHA256 checksum (download expected hash from go.dev)
     # SECURITY: Fail-closed - if we can't verify, we abort
     echo "[*] Verifying SHA256 checksum..."
-    EXPECTED_HASH=$(curl -s "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz.sha256")
+    # Extract just the hash (first field) in case file includes filename like "hash  filename"
+    EXPECTED_HASH=$(curl -s "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz.sha256" | awk '{print $1}')
     
     # Validate response is a proper SHA256 hash (64 hex chars), not HTML error page
     if ! echo "$EXPECTED_HASH" | grep -qE '^[a-f0-9]{64}$'; then
