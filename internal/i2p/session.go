@@ -157,8 +157,10 @@ func (s *Session) Close() error {
 // CRITICAL: If key file exists but fails to load, returns error to prevent
 // silently switching to a new identity (which would orphan deployed implants)
 func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
-	// Try to load existing keys
-	if _, err := os.Stat(keyPath); err == nil {
+	// Check if key file exists
+	_, err := os.Stat(keyPath)
+	if err == nil {
+		// File exists - try to load it
 		fmt.Printf("[*] Loading existing keys from %s\n", keyPath)
 		
 		keys, err := i2pkeys.LoadKeys(keyPath)
@@ -170,6 +172,10 @@ func (s *Session) loadOrGenerateKeys(keyPath string) (sam3.I2PKeys, error) {
 		fmt.Printf("[+] Keys loaded successfully!\n")
 		fmt.Printf("[+] Your B32 address is preserved: %s.b32.i2p\n", keys.Addr().Base32())
 		return sam3.I2PKeys(keys), nil
+	} else if !os.IsNotExist(err) {
+		// CRITICAL FIX: Error is NOT "file not found" (e.g., permission denied)
+		// Fail hard to prevent silent key rotation and implant orphaning
+		return sam3.I2PKeys{}, fmt.Errorf("CRITICAL: cannot access key file %s: %w (fix permissions or run as correct user)", keyPath, err)
 	}
 
 	// Generate new keys
