@@ -23,14 +23,14 @@ sudo apt-get update -qq
 # Install I2P
 echo "[*] Installing I2P..."
 if ! command -v i2prouter &> /dev/null; then
-    # Add I2P repository
-    sudo apt-get install -y apt-transport-https curl
+    # Ensure dependencies are available (curl needed for repo key)
+    sudo apt-get install -y apt-transport-https curl wget gnupg
     
-    # Import I2P signing key
-    curl -s https://geti2p.net/_static/i2p-debian-repo.key.asc | sudo apt-key add -
+    # Import I2P signing key (modern method - apt-key is deprecated)
+    curl -s https://geti2p.net/_static/i2p-debian-repo.key.asc | gpg --dearmor | sudo tee /usr/share/keyrings/i2p-archive-keyring.gpg > /dev/null
     
-    # Add repository
-    echo "deb https://deb.i2p2.de/ stable main" | sudo tee /etc/apt/sources.list.d/i2p.list
+    # Add repository with signed-by (modern method)
+    echo "deb [signed-by=/usr/share/keyrings/i2p-archive-keyring.gpg] https://deb.i2p2.de/ stable main" | sudo tee /etc/apt/sources.list.d/i2p.list
     
     sudo apt-get update -qq
     sudo apt-get install -y i2p i2p-keyring
@@ -53,9 +53,16 @@ if [ -f "$I2P_CONFIG" ]; then
         SAM_ID=$(grep -v '^\s*#' "$I2P_CONFIG" | grep -E 'clientApp\.[0-9]+\s*\.\s*main\s*=\s*net\.i2p\.sam\.SAMBridge' | sed -E 's/^(clientApp\.[0-9]+)\..*$/\1/' | head -1)
         
         if [ -n "$SAM_ID" ]; then
-            # Enable SAM bridge (handle optional spaces around = in both search and replace)
-            sudo sed -i -E "s/(${SAM_ID}[[:space:]]*\.[[:space:]]*startOnLoad[[:space:]]*=[[:space:]]*)false/\1true/" "$I2P_CONFIG" || true
-            echo "[+] SAM bridge enabled (${SAM_ID})"
+            # Check if startOnLoad line exists at all
+            if grep -qE "${SAM_ID}\.startOnLoad" "$I2P_CONFIG"; then
+                # Line exists - replace false with true
+                sudo sed -i -E "s/(${SAM_ID}[[:space:]]*\.[[:space:]]*startOnLoad[[:space:]]*=[[:space:]]*)false/\1true/" "$I2P_CONFIG" || true
+                echo "[+] SAM bridge enabled (${SAM_ID})"
+            else
+                # Line is missing entirely - append it
+                echo "${SAM_ID}.startOnLoad=true" | sudo tee -a "$I2P_CONFIG" > /dev/null
+                echo "[+] SAM bridge enabled (${SAM_ID}) - appended missing config"
+            fi
             
             # Verify the change was applied (allow spaces around = to match sed replacement)
             if grep -qE "${SAM_ID}\.startOnLoad\s*=\s*true" "$I2P_CONFIG"; then

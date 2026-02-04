@@ -44,7 +44,8 @@ type Forwarder struct {
 const IdleTimeout = 60 * time.Minute
 
 // NewForwarder creates a new traffic forwarder
-func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath string) *Forwarder {
+// Returns error if CA certificate is provided but cannot be loaded
+func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath string) (*Forwarder, error) {
 	f := &Forwarder{
 		sliverHost:    sliverHost,
 		sliverPort:    sliverPort,
@@ -53,24 +54,21 @@ func NewForwarder(sliverHost string, sliverPort int, skipTLSVerify bool, caPath 
 	}
 
 	// Pre-load CA certificate if provided (avoids disk I/O on every connection)
-	// CRITICAL: Fail loud if user explicitly provided a CA that can't be loaded
 	if caPath != "" {
 		caCert, err := os.ReadFile(caPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[!] CRITICAL: Failed to read CA file '%s': %v\n", caPath, err)
-			os.Exit(1)
+			return nil, fmt.Errorf("failed to read CA file '%s': %w", caPath, err)
 		}
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(caCert) {
-			fmt.Fprintf(os.Stderr, "[!] CRITICAL: Failed to parse CA certificate from '%s'\n", caPath)
-			os.Exit(1)
+			return nil, fmt.Errorf("failed to parse CA certificate from '%s'", caPath)
 		}
 		f.rootCAs = pool
 		f.skipTLSVerify = false // Enable verification when CA is loaded
 		fmt.Printf("[+] Loaded CA certificate from %s\n", caPath)
 	}
 
-	return f
+	return f, nil
 }
 
 // copyWithTimeout copies data with an idle timeout to detect ghost connections

@@ -71,12 +71,17 @@ func (b *Bridge) Start() error {
 	}
 
 	// Create forwarder
-	b.forwarder = proxy.NewForwarder(
+	forwarder, err := proxy.NewForwarder(
 		b.cfg.SliverHost,
 		b.cfg.SliverPort,
 		b.cfg.SkipTLSVerify,
 		b.cfg.SliverCA,
 	)
+	if err != nil {
+		b.session.Close()
+		return fmt.Errorf("failed to create forwarder: %w", err)
+	}
+	b.forwarder = forwarder
 
 	b.running = true
 
